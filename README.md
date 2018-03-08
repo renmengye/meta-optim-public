@@ -30,7 +30,7 @@ python offline.py --run smd
 ```
 * For commandline configurations, please see `offline.py`.
 
-### Online Meta-Optimization Experiments
+## Online Meta-Optimization Experiments
 ```
 python online.py    [--dataset {DATASET}]                   \
                     [--num_meta_steps {NUM_META_STEPS}]     \
@@ -40,6 +40,9 @@ python online.py    [--dataset {DATASET}]                   \
 * Replace `{NUM_META_STEPS}` with number of meta-optimization steps per update, default 10.
 * Replace `{STEPS_PER_UPDATE}` with number of regular training steps per meta updates, default 100.
 * Use larger `{NUM_META_STEPS}` and smaller `{STEPS_PER_UPDATE}` to observe stronger effect of short-horizon bias (also slower to run).
+
+## How to Write Forward-Mode AutoDiff for Other Optimizers
+This section will be updated later.
 
 ## Citation
 If you use our code, please consider cite the following:
