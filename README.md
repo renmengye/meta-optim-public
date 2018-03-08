@@ -6,7 +6,7 @@ Code for paper
 * matplotlib
 * numpy
 * pandas
-* python 2/3
+* python 2.7 or python 3.5+
 * tensorflow 1.3+
 * tensorflow-forward-ad
 * tqdm
@@ -149,7 +149,7 @@ Understanding Short-Horizon Bias in Stochastic Meta-Optimization.
 In *Proceedings of 6th International Conference on Learning Representations (ICLR)*, 2018.
 
 ```
-@inproceeding{wu18shorthorizon,
+@inproceedings{wu18shorthorizon,
   author   = {Yuhuai Wu and 
               Mengye Ren and 
               Renjie Liao and 
