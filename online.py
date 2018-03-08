@@ -70,7 +70,8 @@ log = get_logger()
 
 flags = tf.flags
 flags.DEFINE_integer('num_meta_steps', 10, 'Number of meta optimization steps')
-flags.DEFINE_integer('steps_per_update', 100, 'Number of steps per meta updates')
+flags.DEFINE_integer('steps_per_update', 100,
+                     'Number of steps per meta updates')
 flags.DEFINE_string('dataset', 'mnist', 'Dataset name')
 FLAGS = flags.FLAGS
 
@@ -78,8 +79,10 @@ FLAGS = flags.FLAGS
 # Constants.
 
 # Training curves.
-Results = namedtuple('Results',
-                     ['step', 'train_xent', 'train_acc', 'test_xent', 'test_acc', 'lr', 'momentum'])
+Results = namedtuple('Results', [
+    'step', 'train_xent', 'train_acc', 'test_xent', 'test_acc', 'lr',
+    'momentum'
+])
 
 
 def _get_exp_logger(sess, log_folder):
@@ -149,8 +152,10 @@ def online_smd(dataset_name='mnist',
         results: Results tuple object.
     """
     dataset = get_dataset(dataset_name)
-    dataset_train = get_dataset(dataset_name)  # For evaluate training progress (full epoch).
-    dataset_test = get_dataset(dataset_name, test=True)  # For evaluate test progress (full epoch).
+    dataset_train = get_dataset(
+        dataset_name)  # For evaluate training progress (full epoch).
+    dataset_test = get_dataset(
+        dataset_name, test=True)  # For evaluate test progress (full epoch).
 
     if dataset_name == 'mnist':
         input_shape = [None, 28, 28, 1]
@@ -171,19 +176,27 @@ def online_smd(dataset_name='mnist',
         init_mom_ = momentum
     if dataset_name == 'mnist':
         config = get_mnist_mlp_config(
-            init_lr_, init_mom_, effective_lr=effective_lr, negative_momentum=negative_momentum)
+            init_lr_,
+            init_mom_,
+            effective_lr=effective_lr,
+            negative_momentum=negative_momentum)
     elif dataset_name == 'cifar-10':
         config = get_cifar_cnn_config(
-            init_lr_, init_mom_, effective_lr=effective_lr, negative_momentum=negative_momentum)
+            init_lr_,
+            init_mom_,
+            effective_lr=effective_lr,
+            negative_momentum=negative_momentum)
     else:
         raise NotImplemented
     with tf.name_scope('Train'):
         with tf.variable_scope('Model'):
             if dataset_name == 'mnist':
-                m = get_mnist_mlp_model(config, x, y, optimizer=optimizer, training=True)
+                m = get_mnist_mlp_model(
+                    config, x, y, optimizer=optimizer, training=True)
                 model = m
             elif dataset_name == 'cifar-10':
-                m = get_cifar_cnn_model(config, x, y, optimizer=optimizer, training=True)
+                m = get_cifar_cnn_model(
+                    config, x, y, optimizer=optimizer, training=True)
                 model = m
     with tf.name_scope('Test'):
         with tf.variable_scope('Model', reuse=True):
@@ -215,7 +228,9 @@ def online_smd(dataset_name='mnist',
     lr_list = []
     mom_list = []
     step_list = []
-    log.info('Applying decay at midpoint with final learning rate = {:.3e}'.format(final_lr))
+    log.info(
+        'Applying decay at midpoint with final learning rate = {:.3e}'.format(
+            final_lr))
 
     if 'momentum' in optimizer:
         mom_name = 'mom'
@@ -225,22 +240,24 @@ def online_smd(dataset_name='mnist',
         raise ValueError('Unknown optimizer')
     hp_dict = {'lr': init_lr, mom_name: momentum}
     hp_names = hp_dict.keys()
-    hyperparams = dict([(hp_name, model.optimizer.hyperparams[hp_name]) for hp_name in hp_names])
+    hyperparams = dict([(hp_name, model.optimizer.hyperparams[hp_name])
+                        for hp_name in hp_names])
     grads = model.optimizer.grads
     accumulators = model.optimizer.accumulators
     new_accumulators = model.optimizer.new_accumulators
     loss = model.cost
 
     # Build look ahead graph.
-    look_ahead_ops, hp_grad_ops, zero_out_ops = look_ahead_grads(hyperparams, grads, accumulators,
-                                                                 new_accumulators, loss)
+    look_ahead_ops, hp_grad_ops, zero_out_ops = look_ahead_grads(
+        hyperparams, grads, accumulators, new_accumulators, loss)
 
     # Meta optimizer, use Adam on the log space.
     meta_opt = LogOptimizer(tf.train.AdamOptimizer(meta_lr))
     hp = [model.optimizer.hyperparams[hp_name] for hp_name in hp_names]
     hp_grads_dict = {
         'lr': tf.placeholder(tf.float32, [], name='lr_grad'),
-        mom_name: tf.placeholder(tf.float32, [], name='{}_grad'.format(mom_name))
+        mom_name: tf.placeholder(
+            tf.float32, [], name='{}_grad'.format(mom_name))
     }
     hp_grads_plh = [hp_grads_dict[hp_name] for hp_name in hp_names]
     hp_grads_and_vars = list(zip(hp_grads_plh, hp))
@@ -299,11 +316,13 @@ def online_smd(dataset_name='mnist',
                 if ii < midpoint and smd:
                     if stochastic:
                         data_list = [
-                            dataset.next_batch(bsize) for step in six.moves.xrange(steps_look_ahead)
+                            dataset.next_batch(bsize)
+                            for step in six.moves.xrange(steps_look_ahead)
                         ]
                         # Take next few batches for last step evaluation.
                         eval_data_list = [
-                            dataset.next_batch(bsize) for step in six.moves.xrange(steps_look_ahead)
+                            dataset.next_batch(bsize)
+                            for step in six.moves.xrange(steps_look_ahead)
                         ]
                     else:
                         data_entry = dataset.next_batch(bsize)
@@ -312,12 +331,14 @@ def online_smd(dataset_name='mnist',
                         eval_data_list = [data_list[0]]
                     sess.run(write_op)
                     for ms in six.moves.xrange(num_meta_steps):
-                        cost, hp_dict = meta_step(sess, model, data_list, look_ahead_ops,
-                                                  hp_grad_ops, hp_grads_plh, meta_train_op,
+                        cost, hp_dict = meta_step(sess, model, data_list,
+                                                  look_ahead_ops, hp_grad_ops,
+                                                  hp_grads_plh, meta_train_op,
                                                   eval_data_list)
                         sess.run(read_op)
                         for hpname, hpval in hp_dict.items():
-                            model.optimizer.assign_hyperparam(sess, hpname, hpval)
+                            model.optimizer.assign_hyperparam(
+                                sess, hpname, hpval)
                     lr_ = hp_dict['lr']
                     mom_ = hp_dict['mom']
                 else:
@@ -337,7 +358,11 @@ def online_smd(dataset_name='mnist',
             # Run regular training.
             if lr_ > 1e-6:
                 xd, yd = dataset.next_batch(bsize)
-                cost_, _ = sess.run([m.cost, m.train_op], feed_dict={m.x: xd, m.y: yd})
+                cost_, _ = sess.run(
+                    [m.cost, m.train_op], feed_dict={
+                        m.x: xd,
+                        m.y: yd
+                    })
 
             # Evaluate every certain number of steps.
             if ii == 0 or (ii + 1) % steps_per_eval == 0:
@@ -349,7 +374,11 @@ def online_smd(dataset_name='mnist',
                 # Report full epoch training loss.
                 for jj in six.moves.xrange(steps_per_epoch):
                     xd, yd = dataset_train.next_batch(bsize)
-                    xent_, acc_ = sess.run([m.cost, m.acc], feed_dict={x: xd, y: yd})
+                    xent_, acc_ = sess.run(
+                        [m.cost, m.acc], feed_dict={
+                            x: xd,
+                            y: yd
+                        })
                     train_xent += xent_ / float(steps_per_epoch)
                     train_acc += acc_ / float(steps_per_epoch)
                 step_list.append(ii + 1)
@@ -360,7 +389,11 @@ def online_smd(dataset_name='mnist',
                 # Report full epoch validation loss.
                 for jj in six.moves.xrange(steps_test_per_epoch):
                     xd, yd = dataset_test.next_batch(bsize)
-                    xent_, acc_ = sess.run([mtest.cost, mtest.acc], feed_dict={x: xd, y: yd})
+                    xent_, acc_ = sess.run(
+                        [mtest.cost, mtest.acc], feed_dict={
+                            x: xd,
+                            y: yd
+                        })
                     test_xent += xent_ / float(steps_test_per_epoch)
                     test_acc += acc_ / float(steps_test_per_epoch)
                 test_xent_list.append(test_xent)
@@ -377,9 +410,11 @@ def online_smd(dataset_name='mnist',
                 exp_logger.flush()
 
                 if print_step:
-                    log.info(('Steps {:d} T Xent {:.3e} T Acc {:.3f} V Xent {:.3e} V Acc {:.3f} '
-                              'LR {:.3e}').format(ii + 1, train_xent, train_acc * 100.0, test_xent,
-                                                  test_acc * 100.0, lr_))
+                    log.info((
+                        'Steps {:d} T Xent {:.3e} T Acc {:.3f} V Xent {:.3e} V Acc {:.3f} '
+                        'LR {:.3e}').format(ii + 1, train_xent,
+                                            train_acc * 100.0, test_xent,
+                                            test_acc * 100.0, lr_))
 
     return Results(
         step=np.array(step_list),
@@ -389,55 +424,6 @@ def online_smd(dataset_name='mnist',
         test_acc=np.array(test_acc_list),
         lr=np.array(lr_list),
         momentum=np.array(mom_list))
-
-
-def plot_report_figure(values,
-                       condition,
-                       title,
-                       ylabel,
-                       filename,
-                       subsample=1,
-                       figsize=(6, 7),
-                       include_legend=True,
-                       top_left=None,
-                       ylim=None):
-    plt.figure(figsize=figsize)
-    num_steps = values.shape[0]
-    num_exp = values.shape[1]
-    values = values.reshape([-1, subsample, num_exp])
-    values = np.mean(values, axis=1)
-    values = moving_average_batch(values, decay=0.5)
-    values = np.expand_dims(values, 0)
-
-    steps = np.arange(1, num_steps + 1, subsample)
-    # color_list = ['red', 'blue', 'cyan', 'orange', 'green', 'purple']
-    color_list = ['red', 'blue', 'blue', 'blue', 'blue', 'blue']
-    for ii in range(num_exp):
-        values_ = np.exp(values[0, :, ii] * np.log(10))
-        print(values.shape)
-        color_ = color_list[ii]
-        plt.plot(steps, values_, color=color_, linewidth=3)
-    ax = plt.gca()
-    ax.grid(color='k', linestyle=':', linewidth=1)
-    if include_legend:
-        plt.legend(condition)
-    ax.xaxis.major.formatter._useMathText = True
-    plt.ticklabel_format(style='sci', axis='x', scilimits=(0, 0))
-    ax.yaxis.major.formatter._useMathText = True
-    plt.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
-    ax.set_yscale('log')
-    if ylim is not None:
-        ax.set_ylim(*ylim)
-    zed = [tick.label.set_fontsize(18) for tick in ax.get_yaxis().get_major_ticks()]
-    zed = [tick.label.set_fontsize(18) for tick in ax.get_xaxis().get_major_ticks()]
-    if include_legend:
-        plt.legend()
-        plt.setp(plt.gca().get_legend().get_texts(), fontsize=18)
-    plt.title(title, fontsize=30)
-    plt.xlabel("Step", fontsize=24)
-    plt.ylabel(ylabel, fontsize=24)
-    plt.tight_layout(pad=2.0)
-    plt.savefig(filename)
 
 
 def plot_report_figure_combined(steps,
@@ -499,7 +485,6 @@ def plot_report_figure_combined(steps,
     ax2.grid(color='k', linestyle=':', linewidth=1)
     ax2.set_xlabel("Steps", fontsize=24)
     ax2.set_ylabel(ylabel2, fontsize=24)
-
     plt.tight_layout(pad=2.0)
     plt.savefig(filename)
 
@@ -517,7 +502,8 @@ def open_folder(folder, stochastic=True):
     if not os.path.exists(folder):
         raise ValueError("{} not found".format(folder))
     print(folder)
-    files = list(sorted(filter(lambda x: x.startswith('0'), os.listdir(folder))))
+    files = list(
+        sorted(filter(lambda x: x.startswith('0'), os.listdir(folder))))
     print(files)
     if stochastic:
         files = list(filter(lambda x: 'stoc' in x or 'manual' in x, files))
@@ -527,7 +513,8 @@ def open_folder(folder, stochastic=True):
     results_list = []
     print(files)
     for fname in files:
-        results_list.append(np.load(os.path.join(folder, fname), encoding='latin1'))
+        results_list.append(
+            np.load(os.path.join(folder, fname), encoding='latin1'))
     return results_list
 
 
@@ -540,13 +527,17 @@ def plot_folder(folder, title, stochastic=True):
     """
     results = open_folder(folder, stochastic=stochastic)
     assert len(results) > 0, 'Cannot find any results'
-    ce_values = np.concatenate([np.expand_dims(r.item()['train_xent'][:-1], 1) for r in results], axis=1)
-    steps = np.concatenate([np.expand_dims(r.item()['step'][:-1], 1) for r in results], axis=1)
-    print(steps.shape)
-    alpha_values = np.concatenate([np.expand_dims(r.item()['lr'], 1) for r in results], axis=1)
-    print(ce_values.shape)
+    ce_values = np.concatenate(
+        [np.expand_dims(r.item()['train_xent'][:-1], 1) for r in results],
+        axis=1)
+    steps = np.concatenate(
+        [np.expand_dims(r.item()['step'][:-1], 1) for r in results], axis=1)
     alpha_eff_values = np.concatenate(
-        [np.expand_dims(r.item()['lr'] / (1.0 - r.item()['momentum']), 1) for r in results], axis=1)
+        [
+            np.expand_dims(r.item()['lr'] / (1.0 - r.item()['momentum']), 1)
+            for r in results
+        ],
+        axis=1)
     condition = ['Manual', 'SMD']
     plot_report_figure_combined(
         steps,
@@ -556,12 +547,13 @@ def plot_folder(folder, title, stochastic=True):
         title,
         'Loss',
         'Eff. Learning Rate',
-        os.path.join(folder, 'combined_{}.pdf'.format('stoc' if stochastic else 'det')),
+        os.path.join(
+            folder, 'combined_{}.pdf'.format('stoc' if stochastic else 'det')),
         include_legend=True)
 
 
-def run_dataset(exp_folder, dataset_name, best_lr, lr_list, optimizer, num_steps, num_meta_steps,
-                steps_per_update):
+def run_dataset(exp_folder, dataset_name, best_lr, lr_list, optimizer,
+                num_steps, num_meta_steps, steps_per_update):
     """Run online experiments for a dataset.
 
     Args:
@@ -591,8 +583,9 @@ def run_dataset(exp_folder, dataset_name, best_lr, lr_list, optimizer, num_steps
     id_len = 1
     for jj, init_lr in enumerate(lr_list):
         with tf.Graph().as_default():
-            result_folder = os.path.join(exp_folder, '{:03d}_stoc_lr_{:.0e}'.format(
-                jj + id_len, init_lr))
+            result_folder = os.path.join(exp_folder,
+                                         '{:03d}_stoc_lr_{:.0e}'.format(
+                                             jj + id_len, init_lr))
             savepath = os.path.join(result_folder, 'result.npy')
             if os.path.exists(savepath):
                 log.info('{} exists, skip'.format(savepath))
@@ -611,8 +604,9 @@ def run_dataset(exp_folder, dataset_name, best_lr, lr_list, optimizer, num_steps
     id_len = len(lr_list) + 1
     for jj, init_lr in enumerate(lr_list):
         with tf.Graph().as_default():
-            result_folder = os.path.join(exp_folder, '{:03d}_det_lr_{:.0e}'.format(
-                jj + id_len, init_lr))
+            result_folder = os.path.join(exp_folder,
+                                         '{:03d}_det_lr_{:.0e}'.format(
+                                             jj + id_len, init_lr))
             savepath = os.path.join(result_folder, 'result.npy')
             if os.path.exists(savepath):
                 log.info('{} exists, skip'.format(savepath))
@@ -635,11 +629,13 @@ def main():
     if not os.path.exists(exp_folder):
         os.makedirs(exp_folder)
     if FLAGS.dataset == 'mnist':
-        run_dataset(exp_folder, 'mnist', 1e-1, [1e-3, 5e-3, 1e-2, 5e-2, 1e-1], optimizer, 50000,
-                    FLAGS.num_meta_steps, FLAGS.steps_per_update)
+        run_dataset(exp_folder, 'mnist', 1e-1, [1e-3, 5e-3, 1e-2, 5e-2, 1e-1],
+                    optimizer, 50000, FLAGS.num_meta_steps,
+                    FLAGS.steps_per_update)
     elif FLAGS.dataset == 'cifar-10':
-        run_dataset(exp_folder, 'cifar-10', 5e-3, [5e-4, 1e-3, 5e-3, 1e-2, 5e-2], optimizer, 50000,
-                    FLAGS.num_meta_steps, FLAGS.steps_per_update)
+        run_dataset(exp_folder, 'cifar-10', 5e-3, [5e-4, 1e-3, 5e-3, 1e-2],
+                    optimizer, 50000, FLAGS.num_meta_steps,
+                    FLAGS.steps_per_update)
     else:
         raise ValueError('Dataset not supported.')
     plot_folder(exp_folder, FLAGS.dataset.upper(), True)
