@@ -40,8 +40,9 @@ from models import get_mnist_mlp_config, get_mnist_mlp_model
 log = get_logger()
 
 # Training curves.
-Results = namedtuple('Results',
-                     ['step', 'train_xent', 'train_acc', 'test_xent', 'test_acc', 'lr', 'decay'])
+Results = namedtuple('Results', [
+    'step', 'train_xent', 'train_acc', 'test_xent', 'test_acc', 'lr', 'decay'
+])
 
 
 def save_results(fname, results):
@@ -51,7 +52,12 @@ def save_results(fname, results):
     np.save(fname, np.array(results._asdict(), dtype=object))
 
 
-def train_steps(sess, m, data_list, init_lr=0.1, decay_const=0.0, time_const=5000.0):
+def train_steps(sess,
+                m,
+                data_list,
+                init_lr=0.1,
+                decay_const=0.0,
+                time_const=5000.0):
     """Train an MLP for MNIST for certain amount of steps.
 
     Args:
@@ -69,7 +75,11 @@ def train_steps(sess, m, data_list, init_lr=0.1, decay_const=0.0, time_const=500
             lr_ = init_lr / ((1.0 + ii / time_const)**decay_const)
         m.optimizer.assign_hyperparam(sess, 'lr', lr_)
         if lr_ > 1e-6:
-            cost_, _ = sess.run([m.cost, m.train_op], feed_dict={m.x: xd, m.y: yd})
+            cost_, _ = sess.run(
+                [m.cost, m.train_op], feed_dict={
+                    m.x: xd,
+                    m.y: yd
+                })
 
     final_cost = 0.0
     for ii, (xd, yd) in enumerate(data_list[:600]):
@@ -140,21 +150,31 @@ def train_mnist_mlp_with_test(init_lr=0.1,
     test_acc_list = []
     lr_list = []
     step_list = []
-    var_to_restore = list(filter(lambda x: 'momentum' not in x.name.lower(), tf.global_variables()))
-    var_to_restore = list(filter(lambda x: 'global_step' not in x.name.lower(), var_to_restore))
-    var_to_restore = list(filter(lambda x: 'lr' not in x.name.lower(), var_to_restore))
-    var_to_restore = list(filter(lambda x: 'mom' not in x.name.lower(), var_to_restore))
-    var_to_restore = list(filter(lambda x: 'decay' not in x.name.lower(), var_to_restore))
-    var_to_init = list(filter(lambda x: x not in var_to_restore, tf.global_variables()))
+    var_to_restore = list(
+        filter(lambda x: 'momentum' not in x.name.lower(),
+               tf.global_variables()))
+    var_to_restore = list(
+        filter(lambda x: 'global_step' not in x.name.lower(), var_to_restore))
+    var_to_restore = list(
+        filter(lambda x: 'lr' not in x.name.lower(), var_to_restore))
+    var_to_restore = list(
+        filter(lambda x: 'mom' not in x.name.lower(), var_to_restore))
+    var_to_restore = list(
+        filter(lambda x: 'decay' not in x.name.lower(), var_to_restore))
+    var_to_init = list(
+        filter(lambda x: x not in var_to_restore, tf.global_variables()))
     restorer = tf.train.Saver(var_to_restore)
     if inverse_decay:
         log.info(
-            'Applying inverse decay with time constant = {:.3e} and decay constant = {:.3e}'.format(
-                time_const, decay_const))
+            'Applying inverse decay with time constant = {:.3e} and decay constant = {:.3e}'.
+            format(time_const, decay_const))
     if middle_decay:
-        log.info('Applying decay at midpoint with final learning rate = {:.3e}'.format(final_lr))
-    assert not (inverse_decay and
-                middle_decay), 'Inverse decay and middle decay cannot be applied at the same time.'
+        log.info(
+            'Applying decay at midpoint with final learning rate = {:.3e}'.
+            format(final_lr))
+    assert not (
+        inverse_decay and middle_decay
+    ), 'Inverse decay and middle decay cannot be applied at the same time.'
 
     with tf.Session() as sess:
         if pretrain_ckpt is None:
@@ -174,7 +194,11 @@ def train_mnist_mlp_with_test(init_lr=0.1,
             else:
                 xd, yd = data_list[ii]
             if lr_ > 1e-6:
-                cost_, _ = sess.run([m.cost, m.train_op], feed_dict={x: xd, y: yd})
+                cost_, _ = sess.run(
+                    [m.cost, m.train_op], feed_dict={
+                        x: xd,
+                        y: yd
+                    })
             test_acc = 0.0
             test_xent = 0.0
             train_acc = 0.0
@@ -196,7 +220,11 @@ def train_mnist_mlp_with_test(init_lr=0.1,
                         xd, yd = dataset_train.next_batch(bsize)
                     else:
                         xd, yd = data_list_eval[jj]
-                    xent_, acc_ = sess.run([m.cost, m.acc], feed_dict={x: xd, y: yd})
+                    xent_, acc_ = sess.run(
+                        [m.cost, m.acc], feed_dict={
+                            x: xd,
+                            y: yd
+                        })
                     train_xent += xent_ / float(steps_per_epoch)
                     train_acc += acc_ / float(steps_per_epoch)
                 step_list.append(ii + 1)
@@ -211,7 +239,11 @@ def train_mnist_mlp_with_test(init_lr=0.1,
                         xd, yd = dataset_test.next_batch(bsize)
                     else:
                         xd, yd = data_list_test[jj]
-                    xent_, acc_ = sess.run([mtest.cost, mtest.acc], feed_dict={x: xd, y: yd})
+                    xent_, acc_ = sess.run(
+                        [mtest.cost, mtest.acc], feed_dict={
+                            x: xd,
+                            y: yd
+                        })
                     test_xent += xent_ / float(steps_test_per_epoch)
                     test_acc += acc_ / float(steps_test_per_epoch)
                 test_xent_list.append(test_xent)
@@ -222,9 +254,11 @@ def train_mnist_mlp_with_test(init_lr=0.1,
 
                 lr_list.append(lr_)
                 if print_step:
-                    log.info(('Steps {:d} T Xent {:.3e} T Acc {:.3f} V Xent {:.3e} V Acc {:.3f} '
-                              'LR {:.3e}').format(ii + 1, train_xent, train_acc * 100.0, test_xent,
-                                                  test_acc * 100.0, lr_))
+                    log.info((
+                        'Steps {:d} T Xent {:.3e} T Acc {:.3f} V Xent {:.3e} V Acc {:.3f} '
+                        'LR {:.3e}').format(ii + 1, train_xent,
+                                            train_acc * 100.0, test_xent,
+                                            test_acc * 100.0, lr_))
         if save_ckpt is not None:
             saver = tf.train.Saver()
             saver.save(sess, save_ckpt)
@@ -239,8 +273,8 @@ def train_mnist_mlp_with_test(init_lr=0.1,
         decay=decay_const)
 
 
-def meta_step(sess, model, data_list, look_ahead_ops, hp_grads_op, hp_grads_plh, meta_train_op,
-              eval_data_list):
+def meta_step(sess, model, data_list, look_ahead_ops, hp_grads_op,
+              hp_grads_plh, meta_train_op, eval_data_list):
     """Run a meta step.
 
     Args:
@@ -257,7 +291,7 @@ def meta_step(sess, model, data_list, look_ahead_ops, hp_grads_op, hp_grads_plh,
     """
     assert len(data_list) > 1, 'We need to look ahead more than 1 step.'
     # Run till the second last item.
-    for ii, (xd, yd) in enumerate(data_list[:-1]):
+    for ii, (xd, yd) in enumerate(data_list):
         fdict = {model.x: xd, model.y: yd}
         sess.run(look_ahead_ops, feed_dict=fdict)
         sess.run(model.train_op, feed_dict=fdict)

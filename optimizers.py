@@ -81,8 +81,13 @@ def gradient_descent_momentum(grads, velocity, var_list, lr, mom):
         var_list_new: List of new variables to be assigned.
         velocity_new: List of new velocity to be assigned.
     """
-    velocity_new = [mom * v + grad for grad, v, var in list(zip(grads, velocity, var_list))]
-    var_list_new = [var - lr * v for v, var in list(zip(velocity_new, var_list))]
+    velocity_new = [
+        mom * v + grad
+        for grad, v, var in list(zip(grads, velocity, var_list))
+    ]
+    var_list_new = [
+        var - lr * v for v, var in list(zip(velocity_new, var_list))
+    ]
     return var_list_new, velocity_new
 
 
@@ -103,8 +108,14 @@ def adam(grads, velocity_m, velocity_v, var_list, lr, beta1, beta2, epsilon):
         velocity_m_new: List of new velocity_m to be assigned.
         velocity_v_new: List of new velocity_v to be assigned.
     """
-    velocity_m_new = [beta1 * mm + (1 - beta1) * gg for gg, mm in list(zip(grads, velocity_m))]
-    velocity_v_new = [beta2 * vv + (1 - beta2) * gg * gg for gg, vv in list(zip(grads, velocity_v))]
+    velocity_m_new = [
+        beta1 * mm + (1 - beta1) * gg
+        for gg, mm in list(zip(grads, velocity_m))
+    ]
+    velocity_v_new = [
+        beta2 * vv + (1 - beta2) * gg * gg
+        for gg, vv in list(zip(grads, velocity_v))
+    ]
     var_list_new = [
         var - tf.realdiv(lr * mm, (tf.sqrt(vv) + epsilon))
         for var, mm, vv in list(zip(var_list, velocity_m_new, velocity_v_new))
@@ -124,12 +135,15 @@ def update(var_list, new_vars, global_step=None):
         train_op: A TensorFlow op for applying gradient descent with momentum.
     """
     assert len(var_list) == len(new_vars)
-    var_op = [tf.assign(x, x_new) for x, x_new in list(zip(var_list, new_vars))]
+    var_op = [
+        tf.assign(x, x_new) for x, x_new in list(zip(var_list, new_vars))
+    ]
     with tf.control_dependencies(var_op):
         if global_step is None:
             return tf.no_op()
         else:
-            return tf.assign_add(global_step, tf.constant(1, dtype=global_step.dtype))
+            return tf.assign_add(global_step,
+                                 tf.constant(1, dtype=global_step.dtype))
 
 
 def lr_decay(init_lr, decay, time_const, global_step):
@@ -146,7 +160,9 @@ def lr_decay(init_lr, decay, time_const, global_step):
     """
     decay = tf.constant(decay)
     decay_step = tf.cast(global_step, tf.float32)
-    lr = tf.realdiv(init_lr, tf.pow(1.0 + tf.realdiv(decay_step, decay_const), self._decay_exp))
+    lr = tf.realdiv(init_lr,
+                    tf.pow(1.0 + tf.realdiv(decay_step, decay_const),
+                           self._decay_exp))
     return lr
 
 
@@ -162,23 +178,29 @@ class Optimizer(object):
         self._dtype = dtype
         for name, hp in hyperparams_dict.items():
             _var = tf.get_variable(
-                name, [], dtype=dtype, initializer=tf.constant_initializer(hp), trainable=False)
+                name, [],
+                dtype=dtype,
+                initializer=tf.constant_initializer(hp),
+                trainable=False)
             self._hyperparams[name] = _var
-            self._assign_ph[name] = tf.placeholder(dtype, [], name=name + '_placeholder')
+            self._assign_ph[name] = tf.placeholder(
+                dtype, [], name=name + '_placeholder')
             self._assign_ops[name] = tf.assign(_var, self._assign_ph[name])
 
     def apply_gradients(self, grads_and_vars, global_step=None):
         """Applies gradients
 
         Args:
-            grads_and_vars:
-            global_step:
+            grads_and_vars: List of tuples of the gradients and the variables.
+            global_step: Tensor that records the global step. Optional.
 
         Returns:
+            train_op: A TensorFlow op that applies the gradients to the variables.
         """
-        pass
+        raise NotImplemented()
 
-    def minimize(self, cost, var_list=None, global_step=None, gate_gradients=1):
+    def minimize(self, cost, var_list=None, global_step=None,
+                 gate_gradients=1):
         """Minimizes a cost function.
 
         Args:
@@ -188,7 +210,7 @@ class Optimizer(object):
             gate_gradients: Whether to allow concurrency in calculating the gradients.
 
         Returns:
-
+            train_op: A TensorFlow op that applies the gradients to the variables.
         """
         raise NotImplemented()
 
@@ -213,7 +235,11 @@ class Optimizer(object):
         return self._new_accumulators
 
     def assign_hyperparam(self, sess, hp_name, val):
-        sess.run(self._assign_ops[hp_name], feed_dict={self._assign_ph[hp_name]: val})
+        sess.run(
+            self._assign_ops[hp_name],
+            feed_dict={
+                self._assign_ph[hp_name]: val
+            })
 
 
 class GradientDescentOptimizer(Optimizer):
@@ -237,7 +263,8 @@ class GradientDescentOptimizer(Optimizer):
         self._new_accumulators = {'w': var_list_new}
         return train_op
 
-    def minimize(self, cost, var_list=None, global_step=None, gate_gradients=1):
+    def minimize(self, cost, var_list=None, global_step=None,
+                 gate_gradients=1):
         """See above in class Optimizer."""
         if var_list is None:
             var_list = tf.trainable_variables()
@@ -245,7 +272,8 @@ class GradientDescentOptimizer(Optimizer):
         grads = tf.gradients(cost, var_list, gate_gradients=gate_gradients)
         self._grads = grads
         self._lr = self.hyperparams['lr']
-        train_op = self.apply_gradients(list(zip(grads, var_list)), global_step=global_step)
+        train_op = self.apply_gradients(
+            list(zip(grads, var_list)), global_step=global_step)
         return train_op
 
     @property
@@ -273,7 +301,11 @@ class MomentumOptimizer(Optimizer):
         """
         self._effective_lr = effective_lr
         self._negative_momentum = negative_momentum
-        super(MomentumOptimizer, self).__init__({'lr': lr, 'mom': momentum}, dtype=dtype)
+        super(MomentumOptimizer, self).__init__(
+            {
+                'lr': lr,
+                'mom': momentum
+            }, dtype=dtype)
 
     def apply_gradients(self, grads_and_vars, global_step=None):
         """See above in class Optimizer."""
@@ -282,8 +314,12 @@ class MomentumOptimizer(Optimizer):
         mom_ = self._mom
         grads = [g for g, v in grads_and_vars]
         var_list = [v for g, v in grads_and_vars]
-        var_list_new, velocity_new = gradient_descent_momentum(grads, velocity, var_list, lr_, mom_)
-        train_op = update(var_list + velocity, var_list_new + velocity_new, global_step=global_step)
+        var_list_new, velocity_new = gradient_descent_momentum(
+            grads, velocity, var_list, lr_, mom_)
+        train_op = update(
+            var_list + velocity,
+            var_list_new + velocity_new,
+            global_step=global_step)
         self._var_list_new = var_list_new
         self._velocity = velocity
         self._velocity_new = velocity_new
@@ -314,16 +350,19 @@ class MomentumOptimizer(Optimizer):
             lr_ = lr
         return lr_, mom_
 
-    def minimize(self, cost, var_list=None, global_step=None, gate_gradients=1):
+    def minimize(self, cost, var_list=None, global_step=None,
+                 gate_gradients=1):
         """See above in class Optimizer."""
         if var_list is None:
             var_list = tf.trainable_variables()
         self._var_list = var_list
         grads = tf.gradients(cost, var_list, gate_gradients=gate_gradients)
-        self._lr, self._mom = self.reparameterize(self.hyperparams['lr'], self.hyperparams['mom'])
+        self._lr, self._mom = self.reparameterize(self.hyperparams['lr'],
+                                                  self.hyperparams['mom'])
         grads = tf.gradients(cost, var_list, gate_gradients=True)
         self._grads = grads
-        return self.apply_gradients(list(zip(grads, var_list)), global_step=global_step)
+        return self.apply_gradients(
+            list(zip(grads, var_list)), global_step=global_step)
 
     @property
     def var_list(self):
@@ -361,9 +400,13 @@ class MomentumInvDecayOptimizer(MomentumOptimizer):
         self._effective_lr = effective_lr
         self._negative_momentum = negative_momentum
         self._time_const = time_const
-        Optimizer.__init__(self, {'lr': lr, 'mom': momentum, 'decay': decay}, dtype=dtype)
+        Optimizer.__init__(
+            self, {'lr': lr,
+                   'mom': momentum,
+                   'decay': decay}, dtype=dtype)
 
-    def minimize(self, cost, var_list=None, global_step=None, gate_gradients=1):
+    def minimize(self, cost, var_list=None, global_step=None,
+                 gate_gradients=1):
         """See above in class Optimizer."""
         if var_list is None:
             var_list = tf.trainable_variables()
@@ -379,7 +422,8 @@ class MomentumInvDecayOptimizer(MomentumOptimizer):
         grads = tf.gradients(cost, var_list, gate_gradients=gate_gradients)
         self._grads = grads
 
-        self._lr, self._mom = self.reparameterize(self.hyperparams['lr'], self.hyperparams['mom'])
+        self._lr, self._mom = self.reparameterize(self.hyperparams['lr'],
+                                                  self.hyperparams['mom'])
 
         # Learning rate decay.
         decay = self.hyperparams['decay']
@@ -388,7 +432,8 @@ class MomentumInvDecayOptimizer(MomentumOptimizer):
         self._lr = self._lr * tf.pow(1.0 + tf.realdiv(t, time_const_f), -decay)
 
         grads = tf.gradients(cost, var_list, gate_gradients=True)
-        return self.apply_gradients(list(zip(grads, var_list)), global_step=global_step)
+        return self.apply_gradients(
+            list(zip(grads, var_list)), global_step=global_step)
 
     @property
     def var_list(self):
@@ -424,19 +469,27 @@ class AdamOptimizer(Optimizer):
         """
         self._epsilon = epsilon
         self._negative_momentum = negative_momentum
-        super(AdamOptimizer, self).__init__({'lr': lr, 'beta1': beta1, 'beta2': beta2}, dtype=dtype)
+        super(AdamOptimizer, self).__init__(
+            {
+                'lr': lr,
+                'beta1': beta1,
+                'beta2': beta2
+            }, dtype=dtype)
 
     def apply_gradients(self, grads_and_vars, global_step=None):
         """See above in class Optimizer."""
-        velocity_m = create_velocity_variables(self._var_list, name='momentum_m')
-        velocity_v = create_velocity_variables(self._var_list, name='momentum_v')
+        velocity_m = create_velocity_variables(
+            self._var_list, name='momentum_m')
+        velocity_v = create_velocity_variables(
+            self._var_list, name='momentum_v')
         lr_ = self._lr
         beta1_ = self._beta1
         beta2_ = self._beta2
         grads = [g for g, v in grads_and_vars]
         var_list = [v for g, v in grads_and_vars]
-        var_list_new, velocity_m_new, velocity_v_new = adam(grads, velocity_m, velocity_v, var_list,
-                                                            lr_, beta1_, beta2_, self._epsilon)
+        var_list_new, velocity_m_new, velocity_v_new = adam(
+            grads, velocity_m, velocity_v, var_list, lr_, beta1_, beta2_,
+            self._epsilon)
         train_op = update(
             var_list + velocity_m + velocity_v,
             var_list_new + velocity_m_new + velocity_v_new,
@@ -447,7 +500,11 @@ class AdamOptimizer(Optimizer):
         self._velocity_v = velocity_v
         self._velocity_v_new = velocity_v_new
         self._accumulators = {'w': var_list, 'm': velocity_m, 'v': velocity_v}
-        self._new_accumulators = {'w': var_list_new, 'm': velocity_m_new, 'v': velocity_v_new}
+        self._new_accumulators = {
+            'w': var_list_new,
+            'm': velocity_m_new,
+            'v': velocity_v_new
+        }
         return train_op
 
     def reparameterize(self, beta1, beta2):
@@ -471,7 +528,8 @@ class AdamOptimizer(Optimizer):
             beta2_ = beta2
         return beta1_, beta2_
 
-    def minimize(self, cost, var_list=None, global_step=None, gate_gradients=1):
+    def minimize(self, cost, var_list=None, global_step=None,
+                 gate_gradients=1):
         """See above in class Optimizer."""
         if var_list is None:
             var_list = tf.trainable_variables()
@@ -485,14 +543,17 @@ class AdamOptimizer(Optimizer):
                 trainable=False)
 
         grads = tf.gradients(cost, var_list, gate_gradients=gate_gradients)
-        self._beta1, self._beta2 = self.reparameterize(self.hyperparams['beta1'],
-                                                       self.hyperparams['beta2'])
+        self._beta1, self._beta2 = self.reparameterize(
+            self.hyperparams['beta1'], self.hyperparams['beta2'])
         t = tf.cast(global_step, self.dtype) + 1.0
-        ratio = tf.realdiv(tf.sqrt(1.0 - tf.pow(self._beta2, t)), (1.0 - tf.pow(self._beta1, t)))
+        ratio = tf.realdiv(
+            tf.sqrt(1.0 - tf.pow(self._beta2, t)),
+            (1.0 - tf.pow(self._beta1, t)))
         self._lr = self.hyperparams['lr'] * ratio
         grads = tf.gradients(cost, var_list, gate_gradients=True)
         self._grads = grads
-        return self.apply_gradients(list(zip(grads, var_list)), global_step=global_step)
+        return self.apply_gradients(
+            list(zip(grads, var_list)), global_step=global_step)
 
     @property
     def var_list(self):
@@ -551,7 +612,8 @@ class LogOptimizer(tf.train.Optimizer):
         Returns:
             train_op: Assigns the new values to the variables.
         """
-        grads_and_vars = list(filter(lambda x: x[0] is not None, grads_and_vars))
+        grads_and_vars = list(
+            filter(lambda x: x[0] is not None, grads_and_vars))
         if clip_gradients is not None:
             new_grads = [
                 self.clip(gv[0], _clip_g)
@@ -568,14 +630,22 @@ class LogOptimizer(tf.train.Optimizer):
                 trainable=False,
                 dtype=vv.dtype) for vv in old_v
         ]
-        var_to_opt = [tf.assign(tv, tf.log(vv)) for tv, vv in list(zip(tmp_v, old_v))]
+        var_to_opt = [
+            tf.assign(tv, tf.log(vv)) for tv, vv in list(zip(tmp_v, old_v))
+        ]
         var_grad = [vv * gg for gg, vv in list(zip(new_grads, old_v))]
         with tf.control_dependencies(var_to_opt):
-            op = self._base_optimizer.apply_gradients(list(zip(var_grad, tmp_v)))
+            op = self._base_optimizer.apply_gradients(
+                list(zip(var_grad, tmp_v)))
         with tf.control_dependencies([op]):
             new_v = [tf.exp(tv) for tv in tmp_v]
             if clip_values is not None:
-                new_v = [self.clip(vv, _clip_v) for vv, _clip_v in list(zip(new_v, clip_values))]
-            train_op = tf.group(
-                *[tf.assign(_old_v, _new_v) for _old_v, _new_v in list(zip(old_v, new_v))])
+                new_v = [
+                    self.clip(vv, _clip_v)
+                    for vv, _clip_v in list(zip(new_v, clip_values))
+                ]
+            train_op = tf.group(*[
+                tf.assign(_old_v, _new_v)
+                for _old_v, _new_v in list(zip(old_v, new_v))
+            ])
         return train_op

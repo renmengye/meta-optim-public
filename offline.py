@@ -69,13 +69,19 @@ from collections import namedtuple
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
-from checkpoint import build_checkpoint, write_checkpoint, read_checkpoint
+from checkpoint import build_checkpoint
+from checkpoint import write_checkpoint
+from checkpoint import read_checkpoint
 from get_dataset import get_dataset
 from logger import get as get_logger
 from look_ahead import look_ahead_grads
-from models import mlp, get_mnist_mlp_model, get_mnist_mlp_config
+from models import mlp, get_mnist_mlp_model
+from models import get_mnist_mlp_config
 from optimizers import LogOptimizer
-from train import train_steps, train_mnist_mlp_with_test, meta_step, save_results
+from train import train_steps
+from train import train_mnist_mlp_with_test
+from train import meta_step
+from train import save_results
 
 log = get_logger()
 
@@ -86,25 +92,29 @@ flags.DEFINE_float('low_log_decay', -2.0, 'Lowest log decacy')
 flags.DEFINE_float('low_log_lr', -3.0, 'Lowest log learning rate')
 flags.DEFINE_float('meta_lr', 1e-2, 'Meta learning rate')
 flags.DEFINE_float('time_const', 5000.0, 'Decay time constant')
-flags.DEFINE_integer('num_meta_steps', 5000, 'Number of meta optimization steps')
+flags.DEFINE_integer('num_meta_steps', 5000,
+                     'Number of meta optimization steps')
 flags.DEFINE_integer('num_pretrain_steps', 50, 'Number of pretraining steps')
 flags.DEFINE_integer('num_samples', 2500, 'Number of random samples')
 flags.DEFINE_integer('seed', 0, 'Random seed for samples')
-flags.DEFINE_string('init_decay', '0.1,10.0',
-                    'Comma delimited string of initial decay exponent for offline SMD')
-flags.DEFINE_string('init_lr', '0.01',
-                    'Comma delimited string of initial learning rates for offline SMD')
+flags.DEFINE_string(
+    'init_decay', '0.1,10.0',
+    'Comma delimited string of initial decay exponent for offline SMD')
+flags.DEFINE_string(
+    'init_lr', '0.01',
+    'Comma delimited string of initial learning rates for offline SMD')
 flags.DEFINE_string('num_steps', '100,1000,5000,20000',
                     'Comma delimited string for number of steps to look ahead')
-flags.DEFINE_string('run', None, 'Which experiment to run, options `surface`, `smd`, `best`.')
+flags.DEFINE_string(
+    'run', None, 'Which experiment to run, options `surface`, `smd`, `best`.')
 
 FLAGS = flags.FLAGS
 
 # --------------------------------------------------------------------
 # Constants.
 # File to store pretrained model.
-PRETRAIN_FILE = 'results/mnist/pretrain_{}/pretrain_{}'.format(FLAGS.num_pretrain_steps,
-                                                               FLAGS.num_pretrain_steps)
+PRETRAIN_FILE = 'results/mnist/pretrain_{}/pretrain_{}'.format(
+    FLAGS.num_pretrain_steps, FLAGS.num_pretrain_steps)
 # Batch size for training.
 BATCH_SIZE = 100
 # Number of training samples.
@@ -115,7 +125,13 @@ NUM_TEST = 10000
 MOMENTUM = 0.9
 
 
-def run_random_search(num_steps, lr_limit, decay_limit, num_samples, ckpt, output, seed=0):
+def run_random_search(num_steps,
+                      lr_limit,
+                      decay_limit,
+                      num_samples,
+                      ckpt,
+                      output,
+                      seed=0):
     """Random search hyperparameters to plot the surface.
 
     Args:
@@ -142,23 +158,31 @@ def run_random_search(num_steps, lr_limit, decay_limit, num_samples, ckpt, outpu
         with tf.name_scope('Train'):
             with tf.variable_scope('Model'):
                 m = get_mnist_mlp_model(config, x, y, training=True)
-        var_to_restore = list(filter(lambda x: 'Momentum' not in x.name, tf.global_variables()))
+        var_to_restore = list(
+            filter(lambda x: 'Momentum' not in x.name, tf.global_variables()))
         saver = tf.train.Saver(var_to_restore)
         # 200 points in the learning rate list, and 100 points in the decay list.
         # random sample 1000.
         rnd = np.random.RandomState(seed)
         # Get a list of stochastic batches first.
-        data_list = [dataset.next_batch(bsize) for step in six.moves.xrange(num_steps)]
+        data_list = [
+            dataset.next_batch(bsize) for step in six.moves.xrange(num_steps)
+        ]
         settings = []
-        for run in tqdm(six.moves.xrange(num_samples), ncols=0, desc='{} steps'.format(num_steps)):
+        for run in tqdm(
+                six.moves.xrange(num_samples),
+                ncols=0,
+                desc='{} steps'.format(num_steps)):
             sess.run(tf.global_variables_initializer())
             saver.restore(sess, ckpt)
             lr = np.random.rand() * (lr_limit[1] - lr_limit[0]) + lr_limit[0]
             lr = np.exp(lr * np.log(10))
-            decay = rnd.uniform(0, 1) * (decay_limit[1] - decay_limit[0]) + decay_limit[0]
+            decay = rnd.uniform(0, 1) * (
+                decay_limit[1] - decay_limit[0]) + decay_limit[0]
             decay = np.exp(decay * np.log(10))
             m.optimizer.assign_hyperparam(sess, 'lr', lr)
-            loss, final_loss = train_steps(sess, m, data_list, init_lr=lr, decay_const=decay)
+            loss, final_loss = train_steps(
+                sess, m, data_list, init_lr=lr, decay_const=decay)
             settings.append([lr, decay, final_loss])
         settings = np.array(settings)
         np.savetxt(output, settings, delimiter=',', header='lr,decay,loss')
@@ -175,7 +199,11 @@ def run_random_search(num_steps, lr_limit, decay_limit, num_samples, ckpt, outpu
     return sorted_settings[0, 0], sorted_settings[0, 1], sorted_settings[0, 2]
 
 
-def run_final_setup(lr_list, decay_list, save_list, num_steps=20000, steps_per_eval=50):
+def run_final_setup(lr_list,
+                    decay_list,
+                    save_list,
+                    num_steps=20000,
+                    steps_per_eval=50):
     """Gets the results for the final setup.
 
     Args:
@@ -185,12 +213,17 @@ def run_final_setup(lr_list, decay_list, save_list, num_steps=20000, steps_per_e
     """
     # Pretrain
     dataset = get_dataset('mnist')
-    data_list = [dataset.next_batch(100) for step in six.moves.xrange(num_steps)]
+    data_list = [
+        dataset.next_batch(100) for step in six.moves.xrange(num_steps)
+    ]
     data_list_eval = data_list[:600]
     dataset_test = get_dataset('mnist', test=True)
-    data_list_test = [dataset_test.next_batch(100) for step in six.moves.xrange(100)]
+    data_list_test = [
+        dataset_test.next_batch(100) for step in six.moves.xrange(100)
+    ]
 
-    for ii, (lr, decay, save) in enumerate(zip(lr_list, decay_list, save_list)):
+    for ii, (lr, decay, save) in enumerate(
+            zip(lr_list, decay_list, save_list)):
         print('-' * 80)
         log.info('Running lr = {:.3e} decay = {:.3e}'.format(lr, decay))
         with tf.Graph().as_default():
@@ -205,15 +238,17 @@ def run_final_setup(lr_list, decay_list, save_list, num_steps=20000, steps_per_e
                 data_list=data_list,
                 data_list_eval=data_list_eval,
                 data_list_test=data_list_test)
-        log.info('Final Train Cost {:.3e} Train Acc {:.3f} Test Cost {:.3e} Test Acc {:.3f}'.format(
-            results.train_xent[-1], results.train_acc[-1], results.test_xent[-1],
-            results.test_acc[-1]))
+        log.info(
+            'Final Train Cost {:.3e} Train Acc {:.3f} Test Cost {:.3e} Test Acc {:.3f}'.
+            format(results.train_xent[-1], results.train_acc[-1],
+                   results.test_xent[-1], results.test_acc[-1]))
         print(results.train_xent)
         print('Train Cost', results.train_xent[-1])
         save_results(save, results)
 
 
-def plot_final_setup(output_list, lr_list, decay_list, step_list, output_fname):
+def plot_final_setup(output_list, lr_list, decay_list, step_list,
+                     output_fname):
     """Plots training curve for the final chosen settings.
 
     Args:
@@ -227,20 +262,28 @@ def plot_final_setup(output_list, lr_list, decay_list, step_list, output_fname):
     fig, axes = plt.subplots(3, 1, figsize=(11, 14))
     color_list = ['r', 'b', 'c', 'k']
     axes = axes.flatten()
-    for ii, (fname, lr, decay) in enumerate(zip(output_list, lr_list, decay_list)):
+    for ii, (fname, lr, decay) in enumerate(
+            zip(output_list, lr_list, decay_list)):
         print(fname)
         # results = pkl.load(open(fname, 'rb'))
         results = np.load(fname)
         results = results.item()
-        axes[0].plot(results['step'], results['train_xent'], color=color_list[ii], linewidth=3)
+        axes[0].plot(
+            results['step'],
+            results['train_xent'],
+            color=color_list[ii],
+            linewidth=3)
         test_line, = axes[1].plot(
-            results['step'], (1.0 - results['test_acc']) * 100.0, color=color_list[ii], linewidth=3)
+            results['step'], (1.0 - results['test_acc']) * 100.0,
+            color=color_list[ii],
+            linewidth=3)
         train_line, = axes[1].plot(
             results['step'], (1.0 - results['train_acc']) * 100.0,
             color=color_list[ii],
             linestyle=":",
             linewidth=3)
-        axes[2].plot(results['step'], results['lr'], color=color_list[ii], linewidth=3)
+        axes[2].plot(
+            results['step'], results['lr'], color=color_list[ii], linewidth=3)
 
     labelsize = 24
     axes[0].legend(['{} Steps'.format(step) for step in step_list])
@@ -312,9 +355,13 @@ def prepare_surface(fname, alpha_limit=None, decay_limit=None, imsize=50):
     delta_log_decay = (max_log_decay - min_log_decay) / imsize
     delta_log_alpha = (max_log_alpha - min_log_alpha) / imsize
     sigma = np.sqrt(delta_log_decay**2 + delta_log_alpha**2)
-    dist_a = 0.5 * (grid_log_alpha.reshape([1, -1]) - np.log10(data[:, 0:1]))**2 / sigma**2
-    dist_d = 0.5 * (grid_log_decay.reshape([1, -1]) - np.log10(data[:, 1:2]))**2 / sigma**2
-    dist = np.expand_dims(dist_a, axis=2)**2 + np.expand_dims(dist_d, axis=1)**2
+    dist_a = 0.5 * (
+        grid_log_alpha.reshape([1, -1]) - np.log10(data[:, 0:1]))**2 / sigma**2
+    dist_d = 0.5 * (
+        grid_log_decay.reshape([1, -1]) - np.log10(data[:, 1:2]))**2 / sigma**2
+    dist = np.expand_dims(
+        dist_a, axis=2)**2 + np.expand_dims(
+            dist_d, axis=1)**2
     prob = np.exp(-dist)
     z = prob / prob.sum(axis=0, keepdims=True)
     value = (z * np.log10(data[:, 2]).reshape([-1, 1, 1])).sum(axis=0)
@@ -335,10 +382,13 @@ def plot_surface(fname_list, step_list):
         alpha_limit
     """
     imsize = 50
-    fig, axes = plt.subplots(nrows=1, ncols=len(fname_list), figsize=(6 * len(step_list), 6))
+    fig, axes = plt.subplots(
+        nrows=1, ncols=len(fname_list), figsize=(6 * len(step_list), 6))
     alpha_limit = None
     decay_limit = None
-    losses = [np.loadtxt(ff, skiprows=1, delimiter=',')[:, 2] for ff in fname_list]
+    losses = [
+        np.loadtxt(ff, skiprows=1, delimiter=',')[:, 2] for ff in fname_list
+    ]
     losses = np.concatenate(losses, axis=0)
     max_loss, min_loss = np.log10(losses.max()), np.log10(losses.min())
     best_alpha = []
@@ -349,7 +399,10 @@ def plot_surface(fname_list, step_list):
         axes = axes.flat
     for fname, ax, t in zip(fname_list, axes, step_list):
         value, _alpha_limit, _decay_limit, grid_log_alpha, grid_log_decay, data = prepare_surface(
-            fname, imsize=imsize, alpha_limit=alpha_limit, decay_limit=decay_limit)
+            fname,
+            imsize=imsize,
+            alpha_limit=alpha_limit,
+            decay_limit=decay_limit)
 
         # Take an average of the top 50 hyperparameter settings.
         top = 50
@@ -370,13 +423,20 @@ def plot_surface(fname_list, step_list):
             alpha_limit = _alpha_limit
         if decay_limit is None:
             decay_limit = _decay_limit
-        _y = np.linspace(np.log10(alpha_limit[0]), np.log10(alpha_limit[1]), imsize)
-        _x = np.linspace(np.log10(decay_limit[0]), np.log10(decay_limit[1]), imsize)
+        _y = np.linspace(
+            np.log10(alpha_limit[0]), np.log10(alpha_limit[1]), imsize)
+        _x = np.linspace(
+            np.log10(decay_limit[0]), np.log10(decay_limit[1]), imsize)
 
         X, Y = np.meshgrid(_x, _y)
         origin = 'lower'
         im = ax.contourf(
-            np.exp(X * np.log(10)), np.exp(Y * np.log(10)), value, 12, cmap='gray', origin=origin)
+            np.exp(X * np.log(10)),
+            np.exp(Y * np.log(10)),
+            value,
+            12,
+            cmap='gray',
+            origin=origin)
         im = ax.contour(im, levels=im.levels, colors='c', origin=origin)
         if plt.rcParams["text.usetex"]:
             fmt = r'%r \%%'
@@ -384,13 +444,20 @@ def plot_surface(fname_list, step_list):
             fmt = '%r %%'
         ax.clabel(im, im.levels, inline=True)
         ax.set_ylabel("Initial Learning Rate", fontsize=20)
-        ax.set_xticks(_x[::10], ["10^{:.0e}".format(dd) for dd in grid_log_decay[::10]])
+        ax.set_xticks(_x[::10],
+                      ["10^{:.0e}".format(dd) for dd in grid_log_decay[::10]])
         ax.set_xlabel("Decay Exponent", fontsize=20)
         ax.set_title("{} steps".format(t), fontsize=24)
         ax.set_xscale('log')
         ax.set_yscale('log')
-        zed = [tick.label.set_fontsize(18) for tick in ax.get_yaxis().get_major_ticks()]
-        zed = [tick.label.set_fontsize(18) for tick in ax.get_xaxis().get_major_ticks()]
+        zed = [
+            tick.label.set_fontsize(18)
+            for tick in ax.get_yaxis().get_major_ticks()
+        ]
+        zed = [
+            tick.label.set_fontsize(18)
+            for tick in ax.get_xaxis().get_major_ticks()
+        ]
         if t > step_list[0]:
             ax.yaxis.set_visible(False)
     plt.tight_layout(h_pad=1.0, w_pad=3.0)
@@ -503,20 +570,30 @@ def run_offline_smd(num_steps,
         with tf.name_scope('Train'):
             with tf.variable_scope('Model'):
                 model = get_mnist_mlp_model(
-                    config, x, y, optimizer='momentum_inv_decay', training=True)
+                    config,
+                    x,
+                    y,
+                    optimizer='momentum_inv_decay',
+                    training=True)
         all_vars = tf.global_variables()
-        var_to_restore = list(filter(lambda x: 'momentum' not in x.name.lower(), all_vars))
-        var_to_restore = list(filter(lambda x: 'global_step' not in x.name.lower(), var_to_restore))
-        var_to_restore = list(filter(lambda x: 'lr' not in x.name.lower(), var_to_restore))
-        var_to_restore = list(filter(lambda x: 'mom' not in x.name.lower(), var_to_restore))
-        var_to_restore = list(filter(lambda x: 'decay' not in x.name.lower(), var_to_restore))
+        var_to_restore = list(
+            filter(lambda x: 'momentum' not in x.name.lower(), all_vars))
+        var_to_restore = list(
+            filter(lambda x: 'global_step' not in x.name.lower(),
+                   var_to_restore))
+        var_to_restore = list(
+            filter(lambda x: 'lr' not in x.name.lower(), var_to_restore))
+        var_to_restore = list(
+            filter(lambda x: 'mom' not in x.name.lower(), var_to_restore))
+        var_to_restore = list(
+            filter(lambda x: 'decay' not in x.name.lower(), var_to_restore))
         saver = tf.train.Saver(var_to_restore)
         rnd = np.random.RandomState(seed)
 
         hp_dict = {'lr': init_lr, 'decay': init_decay}
         hp_names = hp_dict.keys()
-        hyperparams = dict(
-            [(hp_name, model.optimizer.hyperparams[hp_name]) for hp_name in hp_names])
+        hyperparams = dict([(hp_name, model.optimizer.hyperparams[hp_name])
+                            for hp_name in hp_names])
         grads = model.optimizer.grads
         accumulators = model.optimizer.accumulators
         new_accumulators = model.optimizer.new_accumulators
@@ -544,7 +621,8 @@ def run_offline_smd(num_steps,
             hp_grads_and_vars, clip_gradients=cgrad_, clip_values=cval_)
 
         if output_fname is not None:
-            msg = '{} exists, please remove previous experiment data.'.format(output_fname)
+            msg = '{} exists, please remove previous experiment data.'.format(
+                output_fname)
             assert not os.path.exists(output_fname), msg
             log.info('Writing to {}'.format(output_fname))
             with open(output_fname, 'w') as f:
@@ -564,17 +642,23 @@ def run_offline_smd(num_steps,
         it = tqdm(
             six.moves.xrange(num_meta_steps),
             ncols=0,
-            desc='look_{}_ilr_{:.0e}_decay_{:.0e}'.format(num_steps, init_lr, init_decay))
+            desc='look_{}_ilr_{:.0e}_decay_{:.0e}'.format(
+                num_steps, init_lr, init_decay))
 
         for run in it:
             # Stochastic data list makes the SMD converge faster.
-            data_list = [dataset.next_batch(bsize) for step in six.moves.xrange(num_steps)]
+            data_list = [
+                dataset.next_batch(bsize)
+                for step in six.moves.xrange(num_steps)
+            ]
             eval_data_list = [
-                dataset.next_batch(bsize) for step in six.moves.xrange(NUM_TRAIN // bsize)
+                dataset.next_batch(bsize)
+                for step in six.moves.xrange(NUM_TRAIN // bsize)
             ]
             # Run meta descent step.
-            cost, hp_dict = meta_step(sess, model, data_list, look_ahead_ops, hp_grad_ops,
-                                      hp_grads_plh, meta_train_op, eval_data_list)
+            cost, hp_dict = meta_step(sess, model, data_list, look_ahead_ops,
+                                      hp_grad_ops, hp_grads_plh, meta_train_op,
+                                      eval_data_list)
 
             # Early stop if hits NaN.
             if np.isnan(cost):
@@ -598,8 +682,8 @@ def run_offline_smd(num_steps,
             # Write to logs.
             if output_fname is not None:
                 with open(output_fname, 'a') as f:
-                    f.write('{:d},{:f},{:f},{:f},{:f}\n'.format(run, lr, hp_dict['mom'],
-                                                                hp_dict['decay'], cost))
+                    f.write('{:d},{:f},{:f},{:f},{:f}\n'.format(
+                        run, lr, hp_dict['mom'], hp_dict['decay'], cost))
             # Log to TensorBoard.
             exp_logger.log(run, 'lr', lr)
             exp_logger.log(run, 'decay', hp_dict['decay'])
@@ -636,7 +720,9 @@ def plot_meta_curve(folder, ax, color='r'):
     x2 = np.ma.masked_array(x[::ss][:-1], np.diff(x[::ss]) <= 0)
     ax.plot(x1, y[::ss][:-1], color + '>')
     ax.plot(x2, y[::ss][:-1], color + '<')
-    ax.set_ylim(np.exp(np.log(10) * FLAGS.low_log_lr), np.exp(np.log(10) * FLAGS.high_log_lr))
+    ax.set_ylim(
+        np.exp(np.log(10) * FLAGS.low_log_lr),
+        np.exp(np.log(10) * FLAGS.high_log_lr))
     # Find the optimal learning rate and decay.
     return y[-20:].mean(), x[-20:].mean()
 
@@ -664,7 +750,8 @@ def main():
     # Random search hyperparameters.
     if FLAGS.run == 'surface':
         for num_steps, fname in zip(step_list, fname_list):
-            log.info('Running random search for look ahead step = {}'.format(num_steps))
+            log.info('Running random search for look ahead step = {}'.format(
+                num_steps))
             run_random_search(
                 num_steps,
                 lr_limit,
@@ -707,7 +794,8 @@ def main():
         # Plot final setup.
         plot_final_setup(output_list, lr_list, decay_list, step_list,
                          os.path.join('results', 'mnist', 'offline', 'best',
-                                      'offline_pt{}_best.pdf'.format(FLAGS.num_pretrain_steps)))
+                                      'offline_pt{}_best.pdf'.format(
+                                          FLAGS.num_pretrain_steps)))
 
     # --------------------------------------------------------------------
     # Offline SMD
@@ -717,18 +805,22 @@ def main():
         init_lr_list = [float(ss) for ss in FLAGS.init_lr.split(',')]
         init_decay_list = [float(ss) for ss in FLAGS.init_decay.split(',')]
         step_idx = 0  # Which look ahead step we are at.
-        step_list = list(filter(lambda x: x <= 5000, step_list))  # Let's ignore 20k steps for now.
+        step_list = list(filter(lambda x: x <= 5000,
+                                step_list))  # Let's ignore 20k steps for now.
         smd_folder = os.path.join('results', 'mnist', 'offline', 'smd')
         for jj, step in enumerate(step_list):
-            for init_lr, init_decay in itertools.product(init_lr_list, init_decay_list):
+            for init_lr, init_decay in itertools.product(
+                    init_lr_list, init_decay_list):
                 log.info(
-                    'Run SMD with look ahead {} steps, init lr={:.3f}, init decay={:.3f}'.format(
+                    'Run SMD with look ahead {} steps, init lr={:.3f}, init decay={:.3f}'.
+                    format(step, init_lr, init_decay))
+                output_folder = os.path.join(
+                    smd_folder, 'look_{:d}_lr_{:.0e}_decay_{:.0e}'.format(
                         step, init_lr, init_decay))
-                output_folder = os.path.join(smd_folder, 'look_{:d}_lr_{:.0e}_decay_{:.0e}'.format(
-                    step, init_lr, init_decay))
 
                 if os.path.exists(output_folder):
-                    log.info('Found folder {} exists, skip running.'.format(output_folder))
+                    log.info('Found folder {} exists, skip running.'.format(
+                        output_folder))
                 else:
                     output_fname = os.path.join(output_folder, 'log.csv')
                     run_offline_smd(
@@ -744,11 +836,14 @@ def main():
                         output_fname=output_fname)
 
                 # Plot meta-optimization curve on the loss surface.
-                best_alpha, best_decay = plot_meta_curve(output_folder, axes[jj])
-                print('Optimal selection of offline SMD', step, best_alpha, best_decay)
+                best_alpha, best_decay = plot_meta_curve(
+                    output_folder, axes[jj])
+                print('Optimal selection of offline SMD', step, best_alpha,
+                      best_decay)
                 step_idx += 1
-        plot_fname = os.path.join(surface_folder, 'offline_pt{}_surface_traj.pdf'.format(
-            FLAGS.num_pretrain_steps))
+        plot_fname = os.path.join(surface_folder,
+                                  'offline_pt{}_surface_traj.pdf'.format(
+                                      FLAGS.num_pretrain_steps))
         plt.savefig(plot_fname)
         log.info('SMD plot saved: {}'.format(plot_fname))
 
