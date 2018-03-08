@@ -68,32 +68,32 @@ lr = self.hyperparams['lr']
 
 2. Implement the following two functions. 
 ```python
-    def apply_gradients(self, grads_and_vars, global_step=None):
-        """Applies gradients
+def apply_gradients(self, grads_and_vars, global_step=None):
+    """Applies gradients
 
-        Args:
-            grads_and_vars: List of tuples of the gradients and the variables.
-            global_step: Tensor that records the global step. Optional.
+    Args:
+        grads_and_vars: List of tuples of the gradients and the variables.
+        global_step: Tensor that records the global step. Optional.
 
-        Returns:
-            train_op: A TensorFlow op that applies the gradients to the variables.
-        """
-        raise NotImplemented()
+    Returns:
+        train_op: A TensorFlow op that applies the gradients to the variables.
+    """
+    raise NotImplemented()
 
-    def minimize(self, cost, var_list=None, global_step=None,
-                 gate_gradients=1):
-        """Minimizes a cost function.
+def minimize(self, cost, var_list=None, global_step=None,
+             gate_gradients=1):
+    """Minimizes a cost function.
 
-        Args:
-            cost: Cost function to minimize.
-            var_list: List of trainable variables, default tf.trainable_variables().
-            global_step: Global step counter.
-            gate_gradients: Whether to allow concurrency in calculating the gradients.
+    Args:
+        cost: Cost function to minimize.
+        var_list: List of trainable variables, default tf.trainable_variables().
+        global_step: Global step counter.
+        gate_gradients: Whether to allow concurrency in calculating the gradients.
 
-        Returns:
-            train_op: A TensorFlow op that applies the gradients to the variables.
-        """
-        raise NotImplemented()
+    Returns:
+        train_op: A TensorFlow op that applies the gradients to the variables.
+    """
+    raise NotImplemented()
 ```
 
 3. A tensor is called an accumulator if the recursive update formula relies on the value of the
